@@ -16,13 +16,13 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 def carregar_dados():
     try:
         # Lê a aba de estoque de peças
-        estoque = conn.read(worksheet="Lista Peças", ttl="0m")
+        estoque = conn.read(worksheet="Lista Peças", ttl="0")
     except Exception:
         estoque = pd.DataFrame(columns=["Código", "Descrição", "Utilizado", "Un", "Max", "Min"])
         
     try:
         # Lê a aba de pedidos com a nomenclatura exata fornecida
-        pedidos = conn.read(worksheet="Pedidos em Andamento", ttl="0m")
+        pedidos = conn.read(worksheet="Pedidos em Andamento", ttl="0")
     except Exception:
         pedidos = pd.DataFrame(columns=["Data", "Código", "Descrição", "Solicitante", "Situação", "SC", "OF"])
     
