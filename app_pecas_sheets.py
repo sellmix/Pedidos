@@ -15,21 +15,16 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 # Função para ler os dados das abas com segurança adaptada à sua planilha
 def carregar_dados():
     try:
-        # Lê a aba de estoque de peças
-        estoque = conn.read(worksheet="Lista Peças", ttl="0")
-    except Exception:
-        estoque = pd.DataFrame(columns=["Código", "Descrição", "Utilizado", "Un", "Max", "Min"])
+        # Lê a aba de estoque de peças desligando o cache (ttl=0)
+        estoque = conn.read(worksheet="Lista Peças", ttl=0)
+    except Exception as e:
+        st.error(f"Erro ao tentar ler a aba 'Lista Peças': {str(e)}")
+        estoque = pd.DataFrame()
         
     try:
-        # Lê a aba de pedidos com a nomenclatura exata fornecida
-        pedidos = conn.read(worksheet="Pedidos em Andamento", ttl="0")
-    except Exception:
-        pedidos = pd.DataFrame(columns=["Data", "Código", "Descrição", "Solicitante", "Situação", "SC", "OF"])
-    
-    # Garante que as colunas essenciais existam mesmo se a planilha estiver vazia
-    if estoque.empty or "Descrição" not in estoque.columns:
-        estoque = pd.DataFrame(columns=["Código", "Descrição", "Utilizado", "Un", "Max", "Min"])
-    if pedidos.empty or "Situação" not in pedidos.columns:
+        # Lê a aba de pedidos desligando o cache (ttl=0)
+        pedidos = conn.read(worksheet="Pedidos em Andamento", ttl=0)
+    except Exception as e:
         pedidos = pd.DataFrame(columns=["Data", "Código", "Descrição", "Solicitante", "Situação", "SC", "OF"])
         
     return estoque, pedidos
@@ -47,8 +42,27 @@ aba_usuario, aba_admin = st.tabs(["👤 Fazer Pedido", "🔒 Painel do Administr
 with aba_usuario:
     st.subheader("Nova Solicitação")
     
-    if estoque_df.empty:
-        st.warning("O catálogo de peças está vazio ou não foi carregado corretamente. Verifique se a aba se chama 'Lista Peças' e possui a coluna 'Descrição'.")
+    # Se o catálogo estiver vazio ou não encontrar a coluna "Descrição"
+    if estoque_df.empty or "Descrição" not in estoque_df.columns:
+        st.warning("⚠️ O catálogo de peças aparece vazio no aplicativo.")
+        
+        # ÁREA DE DIAGNÓSTICO IMPRESSA NA TELA
+        st.markdown("---")
+        st.subheader("🔍 Diagnóstico da Planilha para o Administrador:")
+        st.write("O robô do Streamlit está conseguindo ler a planilha, mas encontrou a seguinte estrutura:")
+        
+        try:
+            st.write("**Colunas reais encontradas na aba 'Lista Peças':**", list(estoque_df.columns))
+            st.write("**Quantidade de linhas preenchidas lidas:**", len(estoque_df))
+        except Exception:
+            st.write("Não foi possível listar as colunas. Verifique se o nome da aba está 100% correto.")
+            
+        st.markdown("""
+        **O que verificar no seu Google Sheets para corrigir:**
+        1. O nome da aba na parte de baixo da planilha deve ser exatamente: `Lista Peças` (com espaço e o Ç).
+        2. A linha 1 dessa aba deve conter uma coluna escrita exatamente como: `Descrição` (com o Ç e o Til).
+        3. Garanta que você digitou itens nas linhas de baixo (Linha 2, Linha 3, etc.).
+        """)
     else:
         # Lista de peças baseada na coluna "Descrição" que você passou
         lista_pecas = estoque_df["Descrição"].dropna().unique().tolist()
@@ -68,15 +82,13 @@ with aba_usuario:
                 já_existe = False
                 quem_pediu = ""
                 
-                if not pedidos_df.empty:
-                    # Filtra os pedidos pendentes para a peça selecionada usando "Descrição" e "Situação"
+                if not pedidos_df.empty and "Situação" in pedidos_df.columns:
                     duplicados = pedidos_df[
                         (pedidos_df["Descrição"] == peca_selecionada) & 
                         (pedidos_df["Situação"].astype(str).str.lower() == "pendente")
                     ]
                     if not duplicados.empty:
                         já_existe = True
-                        # Pega o primeiro valor da lista de solicitantes
                         quem_pediu = duplicados["Solicitante"].values[0]
                 
                 if já_existe:
@@ -84,12 +96,11 @@ with aba_usuario:
                 else:
                     # Busca o código correspondente à peça selecionada
                     linha_estoque = estoque_df[estoque_df["Descrição"] == peca_selecionada]
-                    codigo_peca = linha_estoque["Código"].values[0] if not linha_estoque.empty else ""
+                    codigo_peca = linha_estoque["Código"].values[0] if not linha_estoque.empty and "Código" in estoque_df.columns else ""
                     
-                    # Data atual formatada (DD/MM/AAAA)
                     data_atual = datetime.now().strftime("%d/%m/%Y")
                     
-                    # Preparar nova linha para salvar com a estrutura exata da sua planilha
+                    # Preparar nova linha para salvar
                     novo_pedido = pd.DataFrame([{
                         "Data": data_atual,
                         "Código": codigo_peca,
@@ -111,7 +122,7 @@ with aba_usuario:
     # Visualização rápida para o usuário ver o que está pendente
     st.markdown("---")
     st.subheader("👀 Pedidos Atuais em Andamento")
-    if not pedidos_df.empty:
+    if not pedidos_df.empty and "Situação" in pedidos_df.columns:
         ativos = pedidos_df[pedidos_df["Situação"].astype(str).str.lower() == "pendente"]
         if not ativos.empty:
             st.dataframe(ativos[["Data", "Código", "Descrição", "Solicitante"]], use_container_width=True, hide_index=True)
@@ -129,20 +140,17 @@ with aba_admin:
         st.success("🔓 Acesso liberado!")
         st.write("Gerencie os pedidos pendentes abaixo:")
         
-        if not pedidos_df.empty:
-            # Filtra apenas os pendentes para gerenciar
+        if not pedidos_df.empty and "Situação" in pedidos_df.columns:
             pendentes = pedidos_df[pedidos_df["Situação"].astype(str).str.lower() == "pendente"]
             
             if pendentes.empty:
                 st.info("Não há pedidos pendentes para autorizar/marcar.")
             else:
                 for idx, row in pendentes.iterrows():
-                    col1, col2 = st.columns([3, 1])
+                    col1, col2 = st.columns()
                     with col1:
                         st.write(f"📦 **[{row['Código']}] {row['Descrição']}** - Por: {row['Solicitante']} ({row['Data']})")
                     with col2:
-                        # Botão individual para o admin atualizar a situação daquela linha
-                        # Usamos o índice da linha como chave única do botão
                         if st.button("Marcar Pedido", key=f"btn_{idx}"):
                             pedidos_df.at[idx, "Situação"] = "Pedido Feito"
                             conn.update(worksheet="Pedidos em Andamento", data=pedidos_df)
@@ -150,5 +158,8 @@ with aba_admin:
                             st.rerun()
         else:
             st.info("Nenhum pedido cadastrado no banco de dados.")
+    elif senha_inserida != "":
+        st.error("Senha incorreta. Tente novamente.")
+
     elif senha_inserida != "":
         st.error("Senha incorreta. Tente novamente.")
