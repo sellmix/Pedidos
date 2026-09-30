@@ -14,20 +14,22 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def carregar_dados():
     try:
-        # Lendo diretamente pelo nome da aba usando a conexão autenticada
         estoque = conn.read(worksheet="Lista Peças", ttl=0)
     except Exception as e:
         st.error(f"Erro ao ler 'Lista Peças'. Verifique os Secrets.")
-        estoque = pd.DataFrame(columns=["Código", "Descrição", "Utilizado", "Un", "Max", "Min"])
+        estoque = pd.DataFrame(columns=["Código", "Descrição", "Utilizado", "Un", "Max", "Min", "Foto"])
         
     try:
         pedidos = conn.read(worksheet="Pedidos em Andamento", ttl=0)
     except Exception:
         pedidos = pd.DataFrame(columns=["Data", "Código", "Descrição", "Quantidade", "Solicitante", "Situação", "SC", "OF"])
     
-    # Validação estrutural de colunas
+    # Validação estrutural de colunas (incluindo a coluna Foto)
     if estoque.empty or "Descrição" not in estoque.columns:
-        estoque = pd.DataFrame(columns=["Código", "Descrição", "Utilizado", "Un", "Max", "Min"])
+        estoque = pd.DataFrame(columns=["Código", "Descrição", "Utilizado", "Un", "Max", "Min", "Foto"])
+    if "Foto" not in estoque.columns:
+        estoque["Foto"] = ""
+        
     if pedidos.empty or "Situação" not in pedidos.columns:
         pedidos = pd.DataFrame(columns=["Data", "Código", "Descrição", "Quantidade", "Solicitante", "Situação", "SC", "OF"])
         
@@ -45,14 +47,38 @@ with aba_usuario:
     st.subheader("Nova Solicitação")
     
     if estoque_df.empty:
-        st.warning("⚠️ O catálogo de peças aparece vazio. Certifique-se de que os Secrets estão configurados no formato correto da biblioteca.")
+        st.warning("⚠️ O catálogo de peças aparece vazio. Certifique-se de que os Secrets estão configurados no formato correto.")
     else:
-        # Limpa e formata a lista de itens da coluna Descrição
         lista_pecas = estoque_df["Descrição"].dropna().unique().tolist()
         lista_pecas = [str(p).strip() for p in lista_pecas if str(p).strip() != ""]
         lista_pecas.sort()
         
         peca_selecionada = st.selectbox("Selecione a Peça (Busque digitando):", ["Selecione..."] + lista_pecas)
+        
+        # --- LÓGICA INTELIGENTE DE EXIBIÇÃO DE FOTOS ---
+        if peca_selecionada != "Selecione...":
+            linha_peca = estoque_df[estoque_df["Descrição"] == peca_selecionada]
+            if not linha_peca.empty and "Foto" in estoque_df.columns:
+                valor_foto = str(linha_peca["Foto"].values[0]).strip()
+                
+                # Caso 1: Está escrito "procurar" -> Gera o link de busca automatizada no Google
+                if valor_foto.lower() == "procurar":
+                    termo_busca = peca_selecionada.replace(" ", "+")
+                    link_google = f"https://google.com{termo_busca}"
+                    st.markdown(f"🔍 **[Clique aqui para ver fotos desta peça no Google Imagens]({link_google})**")
+                
+                # Caso 2: Contém um link real (começa com http ou https) -> Tenta exibir a imagem
+                elif valor_foto.lower().startswith("http"):
+                    try:
+                        st.image(valor_foto, caption=f"Visualização: {peca_selecionada}", use_container_width=True)
+                    except Exception:
+                        st.caption("🖼️ *(Erro ao carregar o link da imagem fornecido na planilha)*")
+                
+                # Caso 3: Está vazio, tem 'nan' ou qualquer outro texto -> Foto não disponível
+                else:
+                    st.caption("🖼️ *Foto não disponível para esta peça.*")
+        # -----------------------------------------------------
+        
         quantidade = st.number_input("Quantidade necessária:", min_value=1, value=1, step=1)
         solicitante = st.text_input("Seu Nome / Identificação:")
         
@@ -78,13 +104,11 @@ with aba_usuario:
                 if já_existe:
                     st.error(f"⚠️ **Aviso de Duplicidade:** Já existe um pedido **Pendente** para a peça *'{peca_selecionada}'* feito por **{quem_pediu}**.")
                 else:
-                    # Coleta o código correspondente à peça selecionada
                     linha_estoque = estoque_df[estoque_df["Descrição"] == peca_selecionada]
                     codigo_peca = linha_estoque.iloc[0]["Código"] if not linha_estoque.empty and "Código" in estoque_df.columns else ""
                     
                     data_atual = datetime.now().strftime("%d/%m/%Y")
                     
-                    # Prepara a nova linha mantendo rigorosamente as colunas da sua planilha de pedidos
                     novo_pedido = pd.DataFrame([{
                         "Data": data_atual,
                         "Código": str(codigo_peca),
@@ -98,7 +122,6 @@ with aba_usuario:
                     
                     pedidos_atualizados = pd.concat([pedidos_df, novo_pedido], ignore_index=True)
                     
-                    # Atualização oficial do gsheets
                     conn.update(worksheet="Pedidos em Andamento", data=pedidos_atualizados)
                     st.success(f"✅ Sucesso! {quantidade}x '{peca_selecionada}' adicionado com sucesso.")
                     st.rerun()
@@ -106,10 +129,8 @@ with aba_usuario:
     st.markdown("---")
     st.subheader("👀 Pedidos Atuais em Andamento")
     if not pedidos_df.empty and "Situação" in pedidos_df.columns:
-        # Filtra apenas o que está pendente para os usuários visualizarem na lista ativa
         ativos = pedidos_df[pedidos_df["Situação"].astype(str).str.lower().str.strip() == "pendente"]
         if not ativos.empty:
-            # INCLUÍDA A COLUNA "SITUAÇÃO" NA VISUALIZAÇÃO DO USUÁRIO
             colunas_visiveis = [c for c in ["Data", "Código", "Descrição", "Quantidade", "Solicitante", "Situação"] if c in ativos.columns]
             st.dataframe(ativos[colunas_visiveis], use_container_width=True, hide_index=True)
         else:
@@ -146,4 +167,5 @@ with aba_admin:
             st.info("Nenhum pedido cadastrado no banco de dados.")
     elif senha_inserida != "":
         st.error("Senha incorreta. Tente novamente.")
+
 
