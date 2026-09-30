@@ -65,7 +65,7 @@ with aba_usuario:
                 # Caso 1: Está escrito "procurar" -> Gera o link correto de busca no Google Imagens
                 if valor_foto.lower() == "procurar":
                     termo_seguro = urllib.parse.quote_plus(peca_selecionada)
-                    link_google = f"https://google.com{termo_seguro}&tbm=isch"
+                    link_google = f"https://google.com/{termo_seguro}&tbm=isch"
                     st.markdown(f"🔍 **[Clique aqui para ver fotos desta peça no Google Imagens]({link_google})**")
                 
                 # Caso 2: Contém um link real (começa com http ou https) -> Tenta exibir a imagem
