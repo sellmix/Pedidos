@@ -4,196 +4,624 @@ import pandas as pd
 from datetime import datetime
 import urllib.parse
 
-# Configurações iniciais da página
-st.set_page_config(page_title="Sistema de Pedidos de Peças", page_icon="⚙️", layout="centered")
+# ============================================================
+# CONFIGURAÇÕES DA PÁGINA
+# ============================================================
 
-# CONFIGURAÇÃO DE SEGURANÇA DO ADMIN
-SENHA_ADMIN = "admin123"     # Altere para a senha que desejar
+st.set_page_config(
+    page_title="Sistema de Pedidos de Peças",
+    page_icon="⚙️",
+    layout="centered"
+)
 
-# Inicializa a conexão oficial usando os Secrets com a Service Account no formato padrão
-conn = st.connection("gsheets", type=GSheetsConnection)
+# ============================================================
+# CONFIGURAÇÃO DE SEGURANÇA
+# ============================================================
+
+SENHA_ADMIN = "admin123"
+
+# ============================================================
+# CONEXÃO COM GOOGLE SHEETS
+# ============================================================
+
+conn = st.connection(
+    "gsheets",
+    type=GSheetsConnection
+)
+
+# ============================================================
+# FUNÇÃO PARA CARREGAR DADOS
+# ============================================================
 
 def carregar_dados():
+
+    # -----------------------------
+    # Estoque
+    # -----------------------------
+
     try:
-        estoque = conn.read(worksheet="Lista Peças", ttl=0)
-    except Exception as e:
-        st.error(f"Erro ao ler 'Lista Peças'. Verifique os Secrets.")
-        estoque = pd.DataFrame(columns=["Código", "Descrição", "Utilizado", "Un", "Max", "Min", "Foto"])
-        
-    try:
-        pedidos = conn.read(worksheet="Pedidos em Andamento", ttl=0)
+
+        estoque = conn.read(
+            worksheet="Lista Peças",
+            ttl=0
+        )
+
     except Exception:
-        pedidos = pd.DataFrame(columns=["Data", "Código", "Descrição", "Quantidade", "Solicitante", "Situação", "SC", "OF"])
-    
-    # Validação estrutural de colunas (incluindo a coluna Foto)
+
+        st.error(
+            "❌ Erro ao ler 'Lista Peças'. "
+            "Verifique os Secrets e a conexão com o Google Sheets."
+        )
+
+        estoque = pd.DataFrame(
+            columns=[
+                "Código",
+                "Descrição",
+                "Utilizado",
+                "Un",
+                "Max",
+                "Min",
+                "Foto"
+            ]
+        )
+
+    # -----------------------------
+    # Pedidos
+    # -----------------------------
+
+    try:
+
+        pedidos = conn.read(
+            worksheet="Pedidos em Andamento",
+            ttl=0
+        )
+
+    except Exception:
+
+        pedidos = pd.DataFrame(
+            columns=[
+                "Data",
+                "Código",
+                "Descrição",
+                "Quantidade",
+                "Solicitante",
+                "Situação",
+                "SC",
+                "OF"
+            ]
+        )
+
+    # ========================================================
+    # VALIDAÇÃO DO ESTOQUE
+    # ========================================================
+
     if estoque.empty or "Descrição" not in estoque.columns:
-        estoque = pd.DataFrame(columns=["Código", "Descrição", "Utilizado", "Un", "Max", "Min", "Foto"])
+
+        estoque = pd.DataFrame(
+            columns=[
+                "Código",
+                "Descrição",
+                "Utilizado",
+                "Un",
+                "Max",
+                "Min",
+                "Foto"
+            ]
+        )
+
     if "Foto" not in estoque.columns:
         estoque["Foto"] = ""
-        
+
+    # ========================================================
+    # VALIDAÇÃO DOS PEDIDOS
+    # ========================================================
+
     if pedidos.empty or "Situação" not in pedidos.columns:
-        pedidos = pd.DataFrame(columns=["Data", "Código", "Descrição", "Quantidade", "Solicitante", "Situação", "SC", "OF"])
-        
+
+        pedidos = pd.DataFrame(
+            columns=[
+                "Data",
+                "Código",
+                "Descrição",
+                "Quantidade",
+                "Solicitante",
+                "Situação",
+                "SC",
+                "OF"
+            ]
+        )
+
+    # Garantir SC e OF
+    if "SC" not in pedidos.columns:
+        pedidos["SC"] = ""
+
+    if "OF" not in pedidos.columns:
+        pedidos["OF"] = ""
+
     return estoque, pedidos
+
+
+# ============================================================
+# CARREGAR DADOS
+# ============================================================
 
 estoque_df, pedidos_df = carregar_dados()
 
+
+# ============================================================
+# TÍTULO
+# ============================================================
+
 st.title("📋 Solicitação de Peças")
-st.write("Busque a peça que precisa e adicione ao pedido em andamento.")
 
-aba_usuario, aba_admin = st.tabs(["👤 Fazer Pedido", "🔒 Painel do Administrador"])
+st.write(
+    "Busque a peça que precisa e adicione ao pedido em andamento."
+)
 
-# ==================== ABA DO USUÁRIO ====================
+
+# ============================================================
+# ABAS
+# ============================================================
+
+aba_usuario, aba_admin = st.tabs(
+    [
+        "👤 Fazer Pedido",
+        "🔒 Painel do Administrador"
+    ]
+)
+
+
+# ============================================================
+# ============================================================
+# ABA DO USUÁRIO
+# ============================================================
+# ============================================================
+
 with aba_usuario:
+
     st.subheader("Nova Solicitação")
-    
+
+    # ========================================================
+    # VERIFICAR ESTOQUE
+    # ========================================================
+
     if estoque_df.empty:
-        st.warning("⚠️ O catálogo de peças aparece vazio. Certifique-se de que os Secrets estão configurados no formato correto.")
+
+        st.warning(
+            "⚠️ O catálogo de peças aparece vazio. "
+            "Certifique-se de que os Secrets estão configurados "
+            "corretamente."
+        )
+
     else:
-        lista_pecas = estoque_df["Descrição"].dropna().unique().tolist()
-        lista_pecas = [str(p).strip() for p in lista_pecas if str(p).strip() != ""]
+
+        # ====================================================
+        # LISTA DE PEÇAS
+        # ====================================================
+
+        lista_pecas = (
+            estoque_df["Descrição"]
+            .dropna()
+            .unique()
+            .tolist()
+        )
+
+        lista_pecas = [
+            str(p).strip()
+            for p in lista_pecas
+            if str(p).strip() != ""
+        ]
+
         lista_pecas.sort()
-        
-        peca_selecionada = st.selectbox("Selecione a Peça (Busque digitando):", ["Selecione..."] + lista_pecas)
-        
-        # --- LÓGICA DE FOTOS CORRIGIDA ---
+
+        # ====================================================
+        # SELEÇÃO DA PEÇA
+        # ====================================================
+
+        peca_selecionada = st.selectbox(
+            "Selecione a Peça (Busque digitando):",
+            ["Selecione..."] + lista_pecas
+        )
+
+        # ====================================================
+        # FOTO DA PEÇA
+        # ====================================================
+
         if peca_selecionada != "Selecione...":
-            linha_peca = estoque_df[estoque_df["Descrição"] == peca_selecionada]
-            if not linha_peca.empty and "Foto" in estoque_df.columns:
-                # CORREÇÃO CRUCIAL: Uso correto do .iloc[0] para extrair o valor da linha do Pandas
-                valor_foto = str(linha_peca.iloc[0]["Foto"]).strip()
-                
-                # Caso 1: Está escrito "procurar"
+
+            linha_peca = estoque_df[
+                estoque_df["Descrição"].astype(str).str.strip()
+                == peca_selecionada
+            ]
+
+            if (
+                not linha_peca.empty
+                and "Foto" in estoque_df.columns
+            ):
+
+                valor_foto = str(
+                    linha_peca.iloc[0]["Foto"]
+                ).strip()
+
+                # --------------------------------------------
+                # CASO 1 - PROCURAR NO GOOGLE
+                # --------------------------------------------
+
                 if valor_foto.lower() == "procurar":
-                    termo_seguro = urllib.parse.quote_plus(peca_selecionada)
-                    link_google = f"https://google.com/search?q={termo_seguro}&tbm=isch"
-                    st.link_button("🔍 Clique aqui para buscar fotos no Google", link_google, type="secondary")
-                
-                # Caso 2: Contém um link real
+
+                    termo_seguro = urllib.parse.quote_plus(
+                        peca_selecionada
+                    )
+
+                    link_google = (
+                        "https://www.google.com/search"
+                        f"?q={termo_seguro}&tbm=isch"
+                    )
+
+                    st.link_button(
+                        "🔍 Clique aqui para buscar fotos no Google",
+                        link_google,
+                        type="secondary"
+                    )
+
+                # --------------------------------------------
+                # CASO 2 - LINK DE IMAGEM
+                # --------------------------------------------
+
                 elif valor_foto.lower().startswith("http"):
+
                     try:
-                        st.image(valor_foto, caption=f"Visualização: {peca_selecionada}", width=300)
+
+                        st.image(
+                            valor_foto,
+                            caption=(
+                                f"Visualização: "
+                                f"{peca_selecionada}"
+                            ),
+                            width=300
+                        )
+
                     except Exception:
-                        st.caption("🖼️ *(Erro ao carregar o link da imagem fornecido na planilha)*")
-                
-                # Caso 3: Está vazio, tem 'nan' ou qualquer outro texto
+
+                        st.caption(
+                            "🖼️ *Erro ao carregar o link "
+                            "da imagem fornecido na planilha.*"
+                        )
+
+                # --------------------------------------------
+                # CASO 3 - SEM FOTO
+                # --------------------------------------------
+
                 else:
-                    st.caption("🖼️ *Foto não disponível para esta peça.*")
-        # -----------------------------------------------------
-        
-        quantidade = st.number_input("Quantidade necessária:", min_value=1, value=1, step=1)
-        solicitante = st.text_input("Seu Nome / Identificação:")
-        
-        if st.button("Incluir no Pedido", type="primary"):
+
+                    st.caption(
+                        "🖼️ *Foto não disponível para esta peça.*"
+                    )
+
+        # ====================================================
+        # QUANTIDADE
+        # ====================================================
+
+        quantidade = st.number_input(
+            "Quantidade necessária:",
+            min_value=1,
+            value=1,
+            step=1
+        )
+
+        # ====================================================
+        # SOLICITANTE
+        # ====================================================
+
+        solicitante = st.text_input(
+            "Seu Nome / Identificação:"
+        )
+
+        # ====================================================
+        # BOTÃO INCLUIR
+        # ====================================================
+
+        if st.button(
+            "Incluir no Pedido",
+            type="primary"
+        ):
+
+            # -----------------------------------------------
+            # VALIDAR PEÇA
+            # -----------------------------------------------
+
             if peca_selecionada == "Selecione...":
-                st.error("Por favor, selecione uma peça válida.")
+
+                st.error(
+                    "Por favor, selecione uma peça válida."
+                )
+
+            # -----------------------------------------------
+            # VALIDAR SOLICITANTE
+            # -----------------------------------------------
+
             elif not solicitante.strip():
-                st.error("Por favor, insira o seu nome.")
+
+                st.error(
+                    "Por favor, insira o seu nome."
+                )
+
             else:
-                # VERIFICAÇÃO DE DUPLICIDADE EM ANDAMENTO
-                já_existe = False
+
+                # -------------------------------------------
+                # VERIFICAR DUPLICIDADE
+                # -------------------------------------------
+
+                ja_existe = False
                 quem_pediu = ""
-                
-                if not pedidos_df.empty and "Situação" in pedidos_df.columns:
+
+                if (
+                    not pedidos_df.empty
+                    and "Situação" in pedidos_df.columns
+                ):
+
                     duplicados = pedidos_df[
-                        (pedidos_df["Descrição"].astype(str) == str(peca_selecionada)) & 
-                        (pedidos_df["Situação"].astype(str).str.lower().str.strip() == "pendente")
+                        (
+                            pedidos_df["Descrição"]
+                            .astype(str)
+                            .str.strip()
+                            == str(peca_selecionada).strip()
+                        )
+                        &
+                        (
+                            pedidos_df["Situação"]
+                            .astype(str)
+                            .str.lower()
+                            .str.strip()
+                            != "entregue"
+                        )
                     ]
+
                     if not duplicados.empty:
-                        já_existe = True
-                        quem_pediu = duplicados.iloc[0]["Solicitante"]
-                
-                if já_existe:
-                    st.error(f"⚠️ **Aviso de Duplicidade:** Já existe um pedido **Pendente** para a peça *'{peca_selecionada}'* feito por **{quem_pediu}**.")
+
+                        ja_existe = True
+
+                        quem_pediu = str(
+                            duplicados.iloc[0]["Solicitante"]
+                        )
+
+                # -------------------------------------------
+                # PEDIDO DUPLICADO
+                # -------------------------------------------
+
+                if ja_existe:
+
+                    st.error(
+                        f"⚠️ **Aviso de Duplicidade:** "
+                        f"Já existe um pedido em andamento "
+                        f"para a peça *'{peca_selecionada}'* "
+                        f"feito por **{quem_pediu}**."
+                    )
+
+                # -------------------------------------------
+                # NOVO PEDIDO
+                # -------------------------------------------
+
                 else:
-                    linha_estoque = estoque_df[estoque_df["Descrição"] == peca_selecionada]
-                    codigo_peca = linha_estoque.iloc[0]["Código"] if not linha_estoque.empty and "Código" in estoque_df.columns else ""
-                    
-                    data_atual = datetime.now().strftime("%d/%m/%Y")
-                    
-                    novo_pedido = pd.DataFrame([{
-                        "Data": data_atual,
-                        "Código": str(codigo_peca),
-                        "Descrição": peca_selecionada,
-                        "Quantidade": int(quantidade),
-                        "Solicitante": solicitante.strip(),
-                        "Situação": "Pendente",
-                        "SC": "",
-                        "OF": ""
-                    }])
-                    
-                    pedidos_atualizados = pd.concat([pedidos_df, novo_pedido], ignore_index=True)
-                    
-                    conn.update(worksheet="Pedidos em Andamento", data=pedidos_atualizados)
-                    st.success(f"✅ Sucesso! {quantidade}x '{peca_selecionada}' adicionado com sucesso.")
+
+                    linha_estoque = estoque_df[
+                        estoque_df["Descrição"]
+                        .astype(str)
+                        .str.strip()
+                        == peca_selecionada
+                    ]
+
+                    if (
+                        not linha_estoque.empty
+                        and "Código" in estoque_df.columns
+                    ):
+
+                        codigo_peca = (
+                            linha_estoque.iloc[0]["Código"]
+                        )
+
+                    else:
+
+                        codigo_peca = ""
+
+                    # ---------------------------------------
+                    # DATA
+                    # ---------------------------------------
+
+                    data_atual = datetime.now().strftime(
+                        "%d/%m/%Y"
+                    )
+
+                    # ---------------------------------------
+                    # NOVO REGISTRO
+                    # ---------------------------------------
+
+                    novo_pedido = pd.DataFrame(
+                        [
+                            {
+                                "Data": data_atual,
+                                "Código": str(codigo_peca),
+                                "Descrição": peca_selecionada,
+                                "Quantidade": int(quantidade),
+                                "Solicitante": solicitante.strip(),
+                                "Situação": "Solicitado",
+                                "SC": "",
+                                "OF": ""
+                            }
+                        ]
+                    )
+
+                    # ---------------------------------------
+                    # JUNTAR COM PEDIDOS EXISTENTES
+                    # ---------------------------------------
+
+                    pedidos_atualizados = pd.concat(
+                        [
+                            pedidos_df,
+                            novo_pedido
+                        ],
+                        ignore_index=True
+                    )
+
+                    # ---------------------------------------
+                    # SALVAR
+                    # ---------------------------------------
+
+                    conn.update(
+                        worksheet="Pedidos em Andamento",
+                        data=pedidos_atualizados
+                    )
+
+                    st.success(
+                        f"✅ Sucesso! "
+                        f"{quantidade}x "
+                        f"'{peca_selecionada}' "
+                        f"adicionado com sucesso."
+                    )
+
                     st.rerun()
 
-    st.markdown("---")
-    st.subheader("👀 Pedidos Atuais em Andamento")
-    if not pedidos_df.empty and "Situação" in pedidos_df.columns:
-        ativos = pedidos_df[pedidos_df["Situação"].astype(str).str.lower().str.strip() == "pendente"]
-        if not ativos.empty:
-            colunas_visiveis = [c for c in ["Data", "Código", "Descrição", "Quantidade", "Solicitante", "Situação"] if c in ativos.columns]
-            st.dataframe(ativos[colunas_visiveis], use_container_width=True, hide_index=True)
-        else:
-            st.info("Nenhum pedido pendente no momento.")
-    else:
-        st.info("Nenhum pedido registrado.")
 
-# ==================== ABA DO ADMINISTRADOR ====================
-# ==================== ABA DO ADMINISTRADOR ====================
+    # ========================================================
+    # PEDIDOS ATUAIS
+    # ========================================================
+
+    st.markdown("---")
+
+    st.subheader(
+        "👀 Pedidos Atuais em Andamento"
+    )
+
+    if (
+        not pedidos_df.empty
+        and "Situação" in pedidos_df.columns
+    ):
+
+        ativos = pedidos_df[
+            pedidos_df["Situação"]
+            .astype(str)
+            .str.strip()
+            .str.lower()
+            != "entregue"
+        ]
+
+        if not ativos.empty:
+
+            colunas_visiveis = [
+                c
+                for c in [
+                    "Data",
+                    "Código",
+                    "Descrição",
+                    "Quantidade",
+                    "Solicitante",
+                    "Situação"
+                ]
+                if c in ativos.columns
+            ]
+
+            st.dataframe(
+                ativos[colunas_visiveis],
+                use_container_width=True,
+                hide_index=True
+            )
+
+        else:
+
+            st.info(
+                "Nenhum pedido em andamento."
+            )
+
+    else:
+
+        st.info(
+            "Nenhum pedido registrado."
+        )
+
+
+# ============================================================
+# ============================================================
+# ABA DO ADMINISTRADOR
+# ============================================================
+# ============================================================
+
 with aba_admin:
-    st.subheader("🔒 Painel do Administrador")
+
+    st.subheader(
+        "🔒 Painel do Administrador"
+    )
+
+    # ========================================================
+    # SENHA
+    # ========================================================
 
     senha_inserida = st.text_input(
         "Digite a senha do Administrador:",
         type="password"
     )
 
+    # ========================================================
+    # ACESSO LIBERADO
+    # ========================================================
+
     if senha_inserida == SENHA_ADMIN:
 
-        st.success("🔓 Acesso liberado!")
+        st.success(
+            "🔓 Acesso liberado!"
+        )
 
-        st.write("### 📋 Controle de Pedidos")
+        st.write(
+            "### 📋 Controle de Pedidos"
+        )
 
-        if not pedidos_df.empty and "Situação" in pedidos_df.columns:
+        # ====================================================
+        # VERIFICAR PEDIDOS
+        # ====================================================
 
-            # ==================================================
-            # MOSTRAR TODOS OS PEDIDOS DIFERENTES DE ENTREGUE
-            # ==================================================
+        if (
+            not pedidos_df.empty
+            and "Situação" in pedidos_df.columns
+        ):
+
+            # -----------------------------------------------
+            # TODOS OS PEDIDOS DIFERENTES DE ENTREGUE
+            # -----------------------------------------------
 
             pedidos_admin = pedidos_df[
                 pedidos_df["Situação"]
                 .astype(str)
                 .str.strip()
-                .str.lower() != "entregue"
+                .str.lower()
+                != "entregue"
             ].copy()
+
+            # -----------------------------------------------
+            # NENHUM PEDIDO
+            # -----------------------------------------------
 
             if pedidos_admin.empty:
 
-                st.info("✅ Não existem pedidos pendentes.")
+                st.info(
+                    "✅ Não existem pedidos pendentes."
+                )
 
             else:
 
-                # Garantir que as colunas existam
+                # -------------------------------------------
+                # GARANTIR COLUNAS SC E OF
+                # -------------------------------------------
+
                 if "SC" not in pedidos_admin.columns:
                     pedidos_admin["SC"] = ""
 
                 if "OF" not in pedidos_admin.columns:
                     pedidos_admin["OF"] = ""
 
-                # Lista de situações permitidas
-                situacoes = [
-                    "Solicitado",
-                    "Com Pedido",
-                    "Entregue"
-                ]
+                # -------------------------------------------
+                # COLUNAS DO PAINEL
+                # -------------------------------------------
 
-                # ==================================================
-                # PREPARAR TABELA PARA EDIÇÃO
-                # ==================================================
-
-                colunas_edicao = [
+                colunas_admin = [
                     "Data",
                     "Código",
                     "Descrição",
@@ -204,82 +632,116 @@ with aba_admin:
                     "OF"
                 ]
 
-                colunas_edicao = [
-                    c for c in colunas_edicao
+                colunas_admin = [
+                    c
+                    for c in colunas_admin
                     if c in pedidos_admin.columns
                 ]
 
-                tabela_editor = pedidos_admin[colunas_edicao].copy()
+                tabela_editor = (
+                    pedidos_admin[
+                        colunas_admin
+                    ]
+                    .copy()
+                    .reset_index(drop=True)
+                )
 
-                # ==================================================
+                # -------------------------------------------
+                # GARANTIR TEXTOS
+                # -------------------------------------------
+
+                for coluna in ["SC", "OF", "Situação"]:
+
+                    if coluna in tabela_editor.columns:
+
+                        tabela_editor[coluna] = (
+                            tabela_editor[coluna]
+                            .fillna("")
+                            .astype(str)
+                        )
+
+                # =================================================
                 # EDITOR
-                # ==================================================
+                # =================================================
 
                 dados_editados = st.data_editor(
+
                     tabela_editor,
+
                     hide_index=True,
+
                     use_container_width=True,
+
                     column_config={
 
-                        "Data": st.column_config.TextColumn(
-                            "Data",
-                            disabled=True
-                        ),
+                        "Data":
+                            st.column_config.TextColumn(
+                                "Data",
+                                disabled=True
+                            ),
 
-                        "Código": st.column_config.TextColumn(
-                            "Código",
-                            disabled=True
-                        ),
+                        "Código":
+                            st.column_config.TextColumn(
+                                "Código",
+                                disabled=True
+                            ),
 
-                        "Descrição": st.column_config.TextColumn(
-                            "Descrição",
-                            disabled=True
-                        ),
+                        "Descrição":
+                            st.column_config.TextColumn(
+                                "Descrição",
+                                disabled=True
+                            ),
 
-                        "Quantidade": st.column_config.NumberColumn(
-                            "Quantidade",
-                            disabled=True
-                        ),
+                        "Quantidade":
+                            st.column_config.NumberColumn(
+                                "Quantidade",
+                                disabled=True
+                            ),
 
-                        "Solicitante": st.column_config.TextColumn(
-                            "Solicitante",
-                            disabled=True
-                        ),
+                        "Solicitante":
+                            st.column_config.TextColumn(
+                                "Solicitante",
+                                disabled=True
+                            ),
 
-                        "Situação": st.column_config.SelectboxColumn(
-                            "Situação",
-                            options=situacoes,
-                            required=True
-                        ),
+                        "Situação":
+                            st.column_config.SelectboxColumn(
+                                "Situação",
+                                options=[
+                                    "Solicitado",
+                                    "Com Pedido",
+                                    "Entregue"
+                                ],
+                                required=True
+                            ),
 
-                        "SC": st.column_config.TextColumn(
-                            "SC",
-                            help="Número da Solicitação de Compra"
-                        ),
+                        "SC":
+                            st.column_config.TextColumn(
+                                "SC",
+                                help=(
+                                    "Número da "
+                                    "Solicitação de Compra"
+                                )
+                            ),
 
-                        "OF": st.column_config.TextColumn(
-                            "OF",
-                            help="Número da Ordem de Fornecimento"
-                        )
+                        "OF":
+                            st.column_config.TextColumn(
+                                "OF",
+                                help=(
+                                    "Número da "
+                                    "Ordem de Fornecimento"
+                                )
+                            )
                     },
-                    disabled=[
-                        c for c in [
-                            "Data",
-                            "Código",
-                            "Descrição",
-                            "Quantidade",
-                            "Solicitante"
-                        ]
-                        if c in tabela_editor.columns
-                    ],
+
                     key="editor_pedidos"
                 )
 
-                st.markdown("---")
-
-                # ==================================================
+                # =================================================
                 # BOTÃO SALVAR
-                # ==================================================
+                # =================================================
+
+                st.markdown("---")
 
                 if st.button(
                     "💾 Salvar alterações",
@@ -289,36 +751,54 @@ with aba_admin:
 
                     try:
 
-                        # Criar cópia do DataFrame original
+                        # -----------------------------------------
+                        # COPIAR PLANILHA ORIGINAL
+                        # -----------------------------------------
+
                         pedidos_novos = pedidos_df.copy()
 
-                        # Atualizar somente os registros exibidos
+                        # -----------------------------------------
+                        # ATUALIZAR OS REGISTROS
+                        # -----------------------------------------
+
                         for posicao, indice_original in enumerate(
                             pedidos_admin.index
                         ):
 
+                            # Situação
                             pedidos_novos.loc[
                                 indice_original,
                                 "Situação"
-                            ] = dados_editados.iloc[
-                                posicao
-                            ]["Situação"]
+                            ] = str(
+                                dados_editados.iloc[
+                                    posicao
+                                ]["Situação"]
+                            )
 
+                            # SC
                             pedidos_novos.loc[
                                 indice_original,
                                 "SC"
-                            ] = dados_editados.iloc[
-                                posicao
-                            ]["SC"]
+                            ] = str(
+                                dados_editados.iloc[
+                                    posicao
+                                ]["SC"]
+                            )
 
+                            # OF
                             pedidos_novos.loc[
                                 indice_original,
                                 "OF"
-                            ] = dados_editados.iloc[
-                                posicao
-                            ]["OF"]
+                            ] = str(
+                                dados_editados.iloc[
+                                    posicao
+                                ]["OF"]
+                            )
 
-                        # Salvar no Google Sheets
+                        # -----------------------------------------
+                        # SALVAR NO GOOGLE SHEETS
+                        # -----------------------------------------
+
                         conn.update(
                             worksheet="Pedidos em Andamento",
                             data=pedidos_novos
@@ -333,14 +813,24 @@ with aba_admin:
                     except Exception as e:
 
                         st.error(
-                            f"❌ Erro ao salvar alterações: {e}"
+                            "❌ Erro ao salvar as alterações."
                         )
+
+                        st.exception(e)
 
         else:
 
             st.info(
-                "Nenhum pedido cadastrado no banco de dados."
+                "Nenhum pedido cadastrado "
+                "no banco de dados."
             )
 
+    # ========================================================
+    # SENHA INCORRETA
+    # ========================================================
+
     elif senha_inserida != "":
-        st.error("❌ Senha incorreta. Tente novamente.")
+
+        st.error(
+            "❌ Senha incorreta. Tente novamente."
+        )
