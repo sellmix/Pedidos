@@ -56,17 +56,18 @@ with aba_usuario:
         
         peca_selecionada = st.selectbox("Selecione a Peça (Busque digitando):", ["Selecione..."] + lista_pecas)
         
-        # --- LÓGICA INTELIGENTE DE EXIBIÇÃO DE FOTOS CORRIGIDA ---
+        # --- LÓGICA DE FOTOS ATUALIZADA COM BOTÃO LINK OFICIAL ---
         if peca_selecionada != "Selecione...":
             linha_peca = estoque_df[estoque_df["Descrição"] == peca_selecionada]
             if not linha_peca.empty and "Foto" in estoque_df.columns:
-                valor_foto = str(linha_peca["Foto"].values[0]).strip() # Adicionado [0] para pegar o valor de forma estrita
+                # Garante que pega a linha de forma isolada e limpa
+                valor_foto = str(linha_peca.iloc[0]["Foto"]).strip()
                 
-                # Caso 1: Está escrito "procurar" -> URL DO GOOGLE RIGOROSAMENTE CORRIGIDA E TESTADA
+                # Caso 1: Está escrito "procurar" -> Usa st.link_button para blindar o link de erros
                 if valor_foto.lower() == "procurar":
                     termo_seguro = urllib.parse.quote(peca_selecionada)
                     link_google = f"https://google.com{termo_seguro}&tbm=isch"
-                    st.markdown(f"🔍 **[Clique aqui para ver fotos desta peça no Google Imagens]({link_google})**")
+                    st.link_button("🔍 Clique aqui para buscar fotos no Google", link_google, type="secondary")
                 
                 # Caso 2: Contém um link real (começa com http ou https) -> Tenta exibir a imagem
                 elif valor_foto.lower().startswith("http"):
@@ -100,7 +101,7 @@ with aba_usuario:
                     ]
                     if not duplicados.empty:
                         já_existe = True
-                        quem_pediu = duplicados.iloc[0]["Solicitante"] # Adicionado .iloc[0] para evitar erros de array
+                        quem_pediu = duplicados.iloc[0]["Solicitante"]
                 
                 if já_existe:
                     st.error(f"⚠️ **Aviso de Duplicidade:** Já existe um pedido **Pendente** para a peça *'{peca_selecionada}'* feito por **{quem_pediu}**.")
@@ -168,6 +169,3 @@ with aba_admin:
             st.info("Nenhum pedido cadastrado no banco de dados.")
     elif senha_inserida != "":
         st.error("Senha incorreta. Tente novamente.")
-
-
-
