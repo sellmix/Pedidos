@@ -6,25 +6,39 @@ from datetime import datetime
 # Configurações iniciais da página
 st.set_page_config(page_title="Sistema de Pedidos de Peças", page_icon="⚙️", layout="centered")
 
-# CONFIGURAÇÃO DE SEGURANÇA
-SENHA_ADMIN = "admin123"  # Altere para a senha que desejar antes de subir o app
+# ================== ADICIONE OS NÚMEROS AQUI ==================
+GID_LISTA_PECAS = 0          # <-- APAGUE o 0 e coloque o número da aba 'Lista Peças'
+GID_PEDIDOS = 880479633       # <-- APAGUE o 12345678 e coloque o número da aba 'Pedidos em Andamento'
+SENHA_ADMIN = "admin123"     # Sua senha de administrador
+# ==============================================================
 
 # Inicializa a conexão com o Google Sheets
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# Função para ler os dados das abas com segurança adaptada à sua planilha
+# Função para ler os dados usando IDs numéricos (GIDs), evitando erros de espaço/caractere
 def carregar_dados():
+    # Monta o link base do secrets
+    url_base = st.secrets["connections"]["gsheets"]["spreadsheet"].split("/edit")[0]
+    
     try:
-        # Lê a aba de estoque de peças desligando o cache (ttl=0)
-        estoque = conn.read(worksheet="Lista Peças", ttl=0)
+        # Força a leitura exata do catálogo por ID numérico
+        url_estoque = f"{url_base}/export?format=csv&gid={GID_LISTA_PECAS}"
+        estoque = pd.read_csv(url_estoque)
     except Exception as e:
-        st.error(f"Erro ao tentar ler a aba 'Lista Peças': {str(e)}")
-        estoque = pd.DataFrame()
+        st.error(f"Erro ao ler catálogo por GID: {str(e)}")
+        estoque = pd.DataFrame(columns=["Código", "Descrição", "Utilizado", "Un", "Max", "Min"])
         
     try:
-        # Lê a aba de pedidos desligando o cache (ttl=0)
-        pedidos = conn.read(worksheet="Pedidos em Andamento", ttl=0)
+        # Força a leitura dos pedidos por ID numérico
+        url_pedidos = f"{url_base}/export?format=csv&gid={GID_PEDIDOS}"
+        pedidos = pd.read_csv(url_pedidos)
     except Exception as e:
+        pedidos = pd.DataFrame(columns=["Data", "Código", "Descrição", "Solicitante", "Situação", "SC", "OF"])
+    
+    # Garante cabeçalhos mínimos caso a tabela venha vazia
+    if estoque.empty or "Descrição" not in estoque.columns:
+        estoque = pd.DataFrame(columns=["Código", "Descrição", "Utilizado", "Un", "Max", "Min"])
+    if pedidos.empty or "Situação" not in pedidos.columns:
         pedidos = pd.DataFrame(columns=["Data", "Código", "Descrição", "Solicitante", "Situação", "SC", "OF"])
         
     return estoque, pedidos
@@ -42,33 +56,12 @@ aba_usuario, aba_admin = st.tabs(["👤 Fazer Pedido", "🔒 Painel do Administr
 with aba_usuario:
     st.subheader("Nova Solicitação")
     
-    # Se o catálogo estiver vazio ou não encontrar a coluna "Descrição"
-    if estoque_df.empty or "Descrição" not in estoque_df.columns:
-        st.warning("⚠️ O catálogo de peças aparece vazio no aplicativo.")
-        
-        # ÁREA DE DIAGNÓSTICO IMPRESSA NA TELA
-        st.markdown("---")
-        st.subheader("🔍 Diagnóstico da Planilha para o Administrador:")
-        st.write("O robô do Streamlit está conseguindo ler a planilha, mas encontrou a seguinte estrutura:")
-        
-        try:
-            st.write("**Colunas reais encontradas na aba 'Lista Peças':**", list(estoque_df.columns))
-            st.write("**Quantidade de linhas preenchidas lidas:**", len(estoque_df))
-        except Exception:
-            st.write("Não foi possível listar as colunas. Verifique se o nome da aba está 100% correto.")
-            
-        st.markdown("""
-        **O que verificar no seu Google Sheets para corrigir:**
-        1. O nome da aba na parte de baixo da planilha deve ser exatamente: `Lista Peças` (com espaço e o Ç).
-        2. A linha 1 dessa aba deve conter uma coluna escrita exatamente como: `Descrição` (com o Ç e o Til).
-        3. Garanta que você digitou itens nas linhas de baixo (Linha 2, Linha 3, etc.).
-        """)
+    if estoque_df.empty:
+        st.warning("⚠️ O catálogo de peças está vazio. Verifique se configurou o GID correto da aba 'Lista Peças' no código.")
     else:
-        # Lista de peças baseada na coluna "Descrição" que você passou
         lista_pecas = estoque_df["Descrição"].dropna().unique().tolist()
-        lista_pecas.sort() # Organiza em ordem alfabética para facilitar a busca
+        lista_pecas.sort()
         
-        # Formulário de entrada
         peca_selecionada = st.selectbox("Selecione a Peça (Busque digitando):", ["Selecione..."] + lista_pecas)
         solicitante = st.text_input("Seu Nome / Identificação:")
         
@@ -78,11 +71,10 @@ with aba_usuario:
             elif not solicitante.strip():
                 st.error("Por favor, insira o seu nome.")
             else:
-                # VERIFICAÇÃO DE DUPLICIDADE EM ANDAMENTO
                 já_existe = False
                 quem_pediu = ""
                 
-                if not pedidos_df.empty and "Situação" in pedidos_df.columns:
+                if not pedidos_df.empty:
                     duplicados = pedidos_df[
                         (pedidos_df["Descrição"] == peca_selecionada) & 
                         (pedidos_df["Situação"].astype(str).str.lower() == "pendente")
@@ -94,13 +86,11 @@ with aba_usuario:
                 if já_existe:
                     st.error(f"⚠️ **Aviso de Duplicidade:** Já existe um pedido **Pendente** para a peça *'{peca_selecionada}'* feito por **{quem_pediu}**.")
                 else:
-                    # Busca o código correspondente à peça selecionada
                     linha_estoque = estoque_df[estoque_df["Descrição"] == peca_selecionada]
                     codigo_peca = linha_estoque["Código"].values[0] if not linha_estoque.empty and "Código" in estoque_df.columns else ""
                     
                     data_atual = datetime.now().strftime("%d/%m/%Y")
                     
-                    # Preparar nova linha para salvar
                     novo_pedido = pd.DataFrame([{
                         "Data": data_atual,
                         "Código": codigo_peca,
@@ -111,15 +101,13 @@ with aba_usuario:
                         "OF": ""
                     }])
                     
-                    # Junta o novo pedido à tabela atual
                     pedidos_atualizados = pd.concat([pedidos_df, novo_pedido], ignore_index=True)
                     
-                    # Salva direto no Google Sheets
+                    # Salva utilizando a biblioteca padrão do gsheets para a aba correspondente
                     conn.update(worksheet="Pedidos em Andamento", data=pedidos_atualizados)
                     st.success(f"✅ Sucesso! '{peca_selecionada}' adicionado à lista de pedidos.")
                     st.rerun()
 
-    # Visualização rápida para o usuário ver o que está pendente
     st.markdown("---")
     st.subheader("👀 Pedidos Atuais em Andamento")
     if not pedidos_df.empty and "Situação" in pedidos_df.columns:
@@ -161,5 +149,3 @@ with aba_admin:
     elif senha_inserida != "":
         st.error("Senha incorreta. Tente novamente.")
 
-    elif senha_inserida != "":
-        st.error("Senha incorreta. Tente novamente.")
