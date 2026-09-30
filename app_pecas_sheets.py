@@ -66,7 +66,7 @@ with aba_usuario:
                 # Caso 1: Está escrito "procurar"
                 if valor_foto.lower() == "procurar":
                     termo_seguro = urllib.parse.quote_plus(peca_selecionada)
-                    link_google = f"https://google.com{termo_seguro}&tbm=isch"
+                    link_google = f"https://google.com/search?q={termo_seguro}&tbm=isch"
                     st.link_button("🔍 Clique aqui para buscar fotos no Google", link_google, type="secondary")
                 
                 # Caso 2: Contém um link real
