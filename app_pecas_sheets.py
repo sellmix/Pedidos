@@ -156,7 +156,7 @@ with aba_admin:
                 st.info("Não há pedidos pendentes para autorizar.")
             else:
                 for idx, row in pendentes.iterrows():
-                    col1, col2 = st.columns()
+                    col1, col2 = st.columns(2)
                     with col1:
                         st.write(f"📦 **[{row['Código']}] {row['Descrição']}** (Qtd: {row['Quantidade']}) - Por: {row['Solicitante']} ({row['Data']})")
                     with col2:
