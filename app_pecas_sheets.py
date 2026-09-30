@@ -613,8 +613,12 @@ with aba_usuario:
 
     st.markdown("---")
 
-    st.subheader(
-        "👀 Pedidos Atuais em Andamento"
+    #st.subheader(
+    #    "👀 Pedidos Atuais em Andamento"
+    #)
+    st.markdown(
+    '<h2 style="font-size:24px; margin-bottom:10px;">👀 Pedidos Atuais em Andamento</h2>',
+    unsafe_allow_html=True
     )
 
 
