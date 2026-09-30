@@ -72,7 +72,7 @@ with aba_usuario:
                 # Caso 2: Contém um link real
                 elif valor_foto.lower().startswith("http"):
                     try:
-                    st.image(valor_foto, caption=f"Visualização: {peca_selecionada}", width=300)
+                        st.image(valor_foto, caption=f"Visualização: {peca_selecionada}", width=300)
                     except Exception:
                         st.caption("🖼️ *(Erro ao carregar o link da imagem fornecido na planilha)*")
                 
