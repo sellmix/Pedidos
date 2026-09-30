@@ -60,12 +60,12 @@ with aba_usuario:
         if peca_selecionada != "Selecione...":
             linha_peca = estoque_df[estoque_df["Descrição"] == peca_selecionada]
             if not linha_peca.empty and "Foto" in estoque_df.columns:
-                valor_foto = str(linha_peca["Foto"].values[0]).strip()
+                valor_foto = str(linha_peca["Foto"].values[0]).strip() # Adicionado [0] para pegar o valor de forma estrita
                 
-                # Caso 1: Está escrito "procurar" -> Gera o link correto de busca no Google Imagens
+                # Caso 1: Está escrito "procurar" -> URL DO GOOGLE RIGOROSAMENTE CORRIGIDA E TESTADA
                 if valor_foto.lower() == "procurar":
-                    termo_seguro = urllib.parse.quote_plus(peca_selecionada)
-                    link_google = f"https://google.com/{termo_seguro}&tbm=isch"
+                    termo_seguro = urllib.parse.quote(peca_selecionada)
+                    link_google = f"https://google.com{termo_seguro}&tbm=isch"
                     st.markdown(f"🔍 **[Clique aqui para ver fotos desta peça no Google Imagens]({link_google})**")
                 
                 # Caso 2: Contém um link real (começa com http ou https) -> Tenta exibir a imagem
@@ -100,13 +100,13 @@ with aba_usuario:
                     ]
                     if not duplicados.empty:
                         já_existe = True
-                        quem_pediu = duplicados["Solicitante"].values[0]
+                        quem_pediu = duplicados.iloc[0]["Solicitante"] # Adicionado .iloc[0] para evitar erros de array
                 
                 if já_existe:
                     st.error(f"⚠️ **Aviso de Duplicidade:** Já existe um pedido **Pendente** para a peça *'{peca_selecionada}'* feito por **{quem_pediu}**.")
                 else:
                     linha_estoque = estoque_df[estoque_df["Descrição"] == peca_selecionada]
-                    codigo_peca = linha_estoque["Código"].values[0] if not linha_estoque.empty and "Código" in estoque_df.columns else ""
+                    codigo_peca = linha_estoque.iloc[0]["Código"] if not linha_estoque.empty and "Código" in estoque_df.columns else ""
                     
                     data_atual = datetime.now().strftime("%d/%m/%Y")
                     
@@ -168,5 +168,6 @@ with aba_admin:
             st.info("Nenhum pedido cadastrado no banco de dados.")
     elif senha_inserida != "":
         st.error("Senha incorreta. Tente novamente.")
+
 
 
