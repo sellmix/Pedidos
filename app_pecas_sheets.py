@@ -106,9 +106,11 @@ with aba_usuario:
     st.markdown("---")
     st.subheader("👀 Pedidos Atuais em Andamento")
     if not pedidos_df.empty and "Situação" in pedidos_df.columns:
+        # Filtra apenas o que está pendente para os usuários visualizarem na lista ativa
         ativos = pedidos_df[pedidos_df["Situação"].astype(str).str.lower().str.strip() == "pendente"]
         if not ativos.empty:
-            colunas_visiveis = [c for c in ["Data", "Código", "Descrição", "Quantidade", "Solicitante"] if c in ativos.columns]
+            # INCLUÍDA A COLUNA "SITUAÇÃO" NA VISUALIZAÇÃO DO USUÁRIO
+            colunas_visiveis = [c for c in ["Data", "Código", "Descrição", "Quantidade", "Solicitante", "Situação"] if c in ativos.columns]
             st.dataframe(ativos[colunas_visiveis], use_container_width=True, hide_index=True)
         else:
             st.info("Nenhum pedido pendente no momento.")
@@ -141,6 +143,7 @@ with aba_admin:
                             st.success(f"Atualizado!")
                             st.rerun()
         else:
-            st.info("Nenhum pedido cadastrado no banco dados.")
+            st.info("Nenhum pedido cadastrado no banco de dados.")
     elif senha_inserida != "":
         st.error("Senha incorreta. Tente novamente.")
+
