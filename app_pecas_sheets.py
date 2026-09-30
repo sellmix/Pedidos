@@ -9,14 +9,10 @@ import urllib.parse
 # CONFIGURAÇÕES DA PÁGINA
 # ============================================================
 
-#st.set_page_config(
-#    page_title="Sistema de Pedidos de Peças",
-#    page_icon="⚙️",
-#    layout="centered"
-#)
-st.markdown(
-    '<h1 style="font-size:28px;">📋 Solicitação de Peças</h1>',
-    unsafe_allow_html=True
+st.set_page_config(
+    page_title="Sistema de Pedidos de Peças",
+    page_icon="⚙️",
+    layout="centered"
 )
 
 
@@ -201,7 +197,11 @@ estoque_df, pedidos_df = carregar_dados()
 # TÍTULO PRINCIPAL
 # ============================================================
 
-st.title("📋 Solicitação de Peças")
+#st.title("📋 Solicitação de Peças")
+st.markdown(
+    '<h1 style="font-size:28px;">📋 Solicitação de Peças</h1>',
+    unsafe_allow_html=True
+)
 
 st.write(
     "Busque a peça que precisa e adicione ao pedido em andamento."
