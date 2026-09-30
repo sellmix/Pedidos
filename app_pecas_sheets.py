@@ -56,27 +56,27 @@ with aba_usuario:
         
         peca_selecionada = st.selectbox("Selecione a Peça (Busque digitando):", ["Selecione..."] + lista_pecas)
         
-        # --- LÓGICA DE FOTOS ATUALIZADA COM BOTÃO LINK OFICIAL ---
+        # --- LÓGICA DE FOTOS CORRIGIDA ---
         if peca_selecionada != "Selecione...":
             linha_peca = estoque_df[estoque_df["Descrição"] == peca_selecionada]
             if not linha_peca.empty and "Foto" in estoque_df.columns:
-                # Garante que pega a linha de forma isolada e limpa
+                # CORREÇÃO CRUCIAL: Uso correto do .iloc[0] para extrair o valor da linha do Pandas
                 valor_foto = str(linha_peca.iloc[0]["Foto"]).strip()
                 
-                # Caso 1: Está escrito "procurar" -> Usa st.link_button para blindar o link de erros
+                # Caso 1: Está escrito "procurar"
                 if valor_foto.lower() == "procurar":
-                    termo_seguro = urllib.parse.quote(peca_selecionada)
+                    termo_seguro = urllib.parse.quote_plus(peca_selecionada)
                     link_google = f"https://google.com{termo_seguro}&tbm=isch"
                     st.link_button("🔍 Clique aqui para buscar fotos no Google", link_google, type="secondary")
                 
-                # Caso 2: Contém um link real (começa com http ou https) -> Tenta exibir a imagem
+                # Caso 2: Contém um link real
                 elif valor_foto.lower().startswith("http"):
                     try:
                         st.image(valor_foto, caption=f"Visualização: {peca_selecionada}", use_container_width=True)
                     except Exception:
                         st.caption("🖼️ *(Erro ao carregar o link da imagem fornecido na planilha)*")
                 
-                # Caso 3: Está vazio, tem 'nan' ou qualquer outro texto -> Foto não disponível
+                # Caso 3: Está vazio, tem 'nan' ou qualquer outro texto
                 else:
                     st.caption("🖼️ *Foto não disponível para esta peça.*")
         # -----------------------------------------------------
