@@ -141,31 +141,206 @@ with aba_usuario:
         st.info("Nenhum pedido registrado.")
 
 # ==================== ABA DO ADMINISTRADOR ====================
+# ==================== ABA DO ADMINISTRADOR ====================
 with aba_admin:
-    st.subheader("Acesso Restrito")
-    senha_inserida = st.text_input("Digite a senha do Administrador:", type="password")
-    
+    st.subheader("🔒 Painel do Administrador")
+
+    senha_inserida = st.text_input(
+        "Digite a senha do Administrador:",
+        type="password"
+    )
+
     if senha_inserida == SENHA_ADMIN:
+
         st.success("🔓 Acesso liberado!")
-        st.write("Gerencie os pedidos pendentes abaixo:")
-        
+
+        st.write("### 📋 Controle de Pedidos")
+
         if not pedidos_df.empty and "Situação" in pedidos_df.columns:
-            pendentes = pedidos_df[pedidos_df["Situação"].astype(str).str.lower().str.strip() == "pendente"]
-            
-            if pendentes.empty:
-                st.info("Não há pedidos pendentes para autorizar.")
+
+            # ==================================================
+            # MOSTRAR TODOS OS PEDIDOS DIFERENTES DE ENTREGUE
+            # ==================================================
+
+            pedidos_admin = pedidos_df[
+                pedidos_df["Situação"]
+                .astype(str)
+                .str.strip()
+                .str.lower() != "entregue"
+            ].copy()
+
+            if pedidos_admin.empty:
+
+                st.info("✅ Não existem pedidos pendentes.")
+
             else:
-                for idx, row in pendentes.iterrows():
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.write(f"📦 **[{row['Código']}] {row['Descrição']}** (Qtd: {row['Quantidade']}) - Por: {row['Solicitante']} ({row['Data']})")
-                    with col2:
-                        if st.button("Marcar Pedido", key=f"btn_{idx}"):
-                            pedidos_df.at[idx, "Situação"] = "Pedido Feito"
-                            conn.update(worksheet="Pedidos em Andamento", data=pedidos_df)
-                            st.success(f"Atualizado!")
-                            st.rerun()
+
+                # Garantir que as colunas existam
+                if "SC" not in pedidos_admin.columns:
+                    pedidos_admin["SC"] = ""
+
+                if "OF" not in pedidos_admin.columns:
+                    pedidos_admin["OF"] = ""
+
+                # Lista de situações permitidas
+                situacoes = [
+                    "Solicitado",
+                    "Com Pedido",
+                    "Entregue"
+                ]
+
+                # ==================================================
+                # PREPARAR TABELA PARA EDIÇÃO
+                # ==================================================
+
+                colunas_edicao = [
+                    "Data",
+                    "Código",
+                    "Descrição",
+                    "Quantidade",
+                    "Solicitante",
+                    "Situação",
+                    "SC",
+                    "OF"
+                ]
+
+                colunas_edicao = [
+                    c for c in colunas_edicao
+                    if c in pedidos_admin.columns
+                ]
+
+                tabela_editor = pedidos_admin[colunas_edicao].copy()
+
+                # ==================================================
+                # EDITOR
+                # ==================================================
+
+                dados_editados = st.data_editor(
+                    tabela_editor,
+                    hide_index=True,
+                    use_container_width=True,
+                    column_config={
+
+                        "Data": st.column_config.TextColumn(
+                            "Data",
+                            disabled=True
+                        ),
+
+                        "Código": st.column_config.TextColumn(
+                            "Código",
+                            disabled=True
+                        ),
+
+                        "Descrição": st.column_config.TextColumn(
+                            "Descrição",
+                            disabled=True
+                        ),
+
+                        "Quantidade": st.column_config.NumberColumn(
+                            "Quantidade",
+                            disabled=True
+                        ),
+
+                        "Solicitante": st.column_config.TextColumn(
+                            "Solicitante",
+                            disabled=True
+                        ),
+
+                        "Situação": st.column_config.SelectboxColumn(
+                            "Situação",
+                            options=situacoes,
+                            required=True
+                        ),
+
+                        "SC": st.column_config.TextColumn(
+                            "SC",
+                            help="Número da Solicitação de Compra"
+                        ),
+
+                        "OF": st.column_config.TextColumn(
+                            "OF",
+                            help="Número da Ordem de Fornecimento"
+                        )
+                    },
+                    disabled=[
+                        c for c in [
+                            "Data",
+                            "Código",
+                            "Descrição",
+                            "Quantidade",
+                            "Solicitante"
+                        ]
+                        if c in tabela_editor.columns
+                    ],
+                    key="editor_pedidos"
+                )
+
+                st.markdown("---")
+
+                # ==================================================
+                # BOTÃO SALVAR
+                # ==================================================
+
+                if st.button(
+                    "💾 Salvar alterações",
+                    type="primary",
+                    use_container_width=True
+                ):
+
+                    try:
+
+                        # Criar cópia do DataFrame original
+                        pedidos_novos = pedidos_df.copy()
+
+                        # Atualizar somente os registros exibidos
+                        for posicao, indice_original in enumerate(
+                            pedidos_admin.index
+                        ):
+
+                            pedidos_novos.loc[
+                                indice_original,
+                                "Situação"
+                            ] = dados_editados.iloc[
+                                posicao
+                            ]["Situação"]
+
+                            pedidos_novos.loc[
+                                indice_original,
+                                "SC"
+                            ] = dados_editados.iloc[
+                                posicao
+                            ]["SC"]
+
+                            pedidos_novos.loc[
+                                indice_original,
+                                "OF"
+                            ] = dados_editados.iloc[
+                                posicao
+                            ]["OF"]
+
+                        # Salvar no Google Sheets
+                        conn.update(
+                            worksheet="Pedidos em Andamento",
+                            data=pedidos_novos
+                        )
+
+                        st.success(
+                            "✅ Alterações salvas com sucesso!"
+                        )
+
+                        st.rerun()
+
+                    except Exception as e:
+
+                        st.error(
+                            f"❌ Erro ao salvar alterações: {e}"
+                        )
+
         else:
-            st.info("Nenhum pedido cadastrado no banco de dados.")
+
+            st.info(
+                "Nenhum pedido cadastrado no banco de dados."
+            )
+
     elif senha_inserida != "":
-        st.error("Senha incorreta. Tente novamente.")
+        st.error("❌ Senha incorreta. Tente novamente.")
