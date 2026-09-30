@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import datetime
 import urllib.parse
 
+
 # ============================================================
 # CONFIGURAÇÕES DA PÁGINA
 # ============================================================
@@ -14,11 +15,13 @@ st.set_page_config(
     layout="centered"
 )
 
+
 # ============================================================
-# CONFIGURAÇÃO DE SEGURANÇA
+# CONFIGURAÇÃO DE SEGURANÇA DO ADMINISTRADOR
 # ============================================================
 
 SENHA_ADMIN = "admin123"
+
 
 # ============================================================
 # CONEXÃO COM GOOGLE SHEETS
@@ -29,15 +32,16 @@ conn = st.connection(
     type=GSheetsConnection
 )
 
+
 # ============================================================
-# FUNÇÃO PARA CARREGAR DADOS
+# FUNÇÃO PARA CARREGAR OS DADOS
 # ============================================================
 
 def carregar_dados():
 
-    # -----------------------------
-    # Estoque
-    # -----------------------------
+    # --------------------------------------------------------
+    # LISTA DE PEÇAS
+    # --------------------------------------------------------
 
     try:
 
@@ -49,7 +53,7 @@ def carregar_dados():
     except Exception:
 
         st.error(
-            "❌ Erro ao ler 'Lista Peças'. "
+            "❌ Erro ao ler a planilha 'Lista Peças'. "
             "Verifique os Secrets e a conexão com o Google Sheets."
         )
 
@@ -65,9 +69,10 @@ def carregar_dados():
             ]
         )
 
-    # -----------------------------
-    # Pedidos
-    # -----------------------------
+
+    # --------------------------------------------------------
+    # PEDIDOS
+    # --------------------------------------------------------
 
     try:
 
@@ -91,11 +96,15 @@ def carregar_dados():
             ]
         )
 
+
     # ========================================================
-    # VALIDAÇÃO DO ESTOQUE
+    # VALIDAR ESTOQUE
     # ========================================================
 
-    if estoque.empty or "Descrição" not in estoque.columns:
+    if (
+        estoque.empty
+        or "Descrição" not in estoque.columns
+    ):
 
         estoque = pd.DataFrame(
             columns=[
@@ -109,14 +118,20 @@ def carregar_dados():
             ]
         )
 
+
     if "Foto" not in estoque.columns:
+
         estoque["Foto"] = ""
 
+
     # ========================================================
-    # VALIDAÇÃO DOS PEDIDOS
+    # VALIDAR PEDIDOS
     # ========================================================
 
-    if pedidos.empty or "Situação" not in pedidos.columns:
+    if (
+        pedidos.empty
+        or "Situação" not in pedidos.columns
+    ):
 
         pedidos = pd.DataFrame(
             columns=[
@@ -131,12 +146,42 @@ def carregar_dados():
             ]
         )
 
-    # Garantir SC e OF
+
+    # --------------------------------------------------------
+    # Garantir SC
+    # --------------------------------------------------------
+
     if "SC" not in pedidos.columns:
+
         pedidos["SC"] = ""
 
+
+    # --------------------------------------------------------
+    # Garantir OF
+    # --------------------------------------------------------
+
     if "OF" not in pedidos.columns:
+
         pedidos["OF"] = ""
+
+
+    # ========================================================
+    # IMPORTANTE:
+    # CONVERTER CAMPOS EDITÁVEIS PARA TEXTO
+    # ========================================================
+
+    for coluna in ["SC", "OF", "Situação"]:
+
+        if coluna not in pedidos.columns:
+
+            pedidos[coluna] = ""
+
+        pedidos[coluna] = (
+            pedidos[coluna]
+            .fillna("")
+            .astype(str)
+        )
+
 
     return estoque, pedidos
 
@@ -149,7 +194,7 @@ estoque_df, pedidos_df = carregar_dados()
 
 
 # ============================================================
-# TÍTULO
+# TÍTULO PRINCIPAL
 # ============================================================
 
 st.title("📋 Solicitação de Peças")
@@ -171,15 +216,18 @@ aba_usuario, aba_admin = st.tabs(
 )
 
 
-# ============================================================
-# ============================================================
-# ABA DO USUÁRIO
-# ============================================================
-# ============================================================
+# ################################################################
+# ################################################################
+#
+#                       ABA DO USUÁRIO
+#
+# ################################################################
+# ################################################################
 
 with aba_usuario:
 
     st.subheader("Nova Solicitação")
+
 
     # ========================================================
     # VERIFICAR ESTOQUE
@@ -196,7 +244,7 @@ with aba_usuario:
     else:
 
         # ====================================================
-        # LISTA DE PEÇAS
+        # MONTAR LISTA DE PEÇAS
         # ====================================================
 
         lista_pecas = (
@@ -206,22 +254,26 @@ with aba_usuario:
             .tolist()
         )
 
+
         lista_pecas = [
             str(p).strip()
             for p in lista_pecas
             if str(p).strip() != ""
         ]
 
+
         lista_pecas.sort()
 
+
         # ====================================================
-        # SELEÇÃO DA PEÇA
+        # SELECIONAR PEÇA
         # ====================================================
 
         peca_selecionada = st.selectbox(
             "Selecione a Peça (Busque digitando):",
             ["Selecione..."] + lista_pecas
         )
+
 
         # ====================================================
         # FOTO DA PEÇA
@@ -230,9 +282,12 @@ with aba_usuario:
         if peca_selecionada != "Selecione...":
 
             linha_peca = estoque_df[
-                estoque_df["Descrição"].astype(str).str.strip()
+                estoque_df["Descrição"]
+                .astype(str)
+                .str.strip()
                 == peca_selecionada
             ]
+
 
             if (
                 not linha_peca.empty
@@ -243,20 +298,25 @@ with aba_usuario:
                     linha_peca.iloc[0]["Foto"]
                 ).strip()
 
-                # --------------------------------------------
-                # CASO 1 - PROCURAR NO GOOGLE
-                # --------------------------------------------
+
+                # ------------------------------------------------
+                # CASO 1 - BUSCAR FOTO NO GOOGLE
+                # ------------------------------------------------
 
                 if valor_foto.lower() == "procurar":
 
-                    termo_seguro = urllib.parse.quote_plus(
-                        peca_selecionada
+                    termo_seguro = (
+                        urllib.parse.quote_plus(
+                            peca_selecionada
+                        )
                     )
+
 
                     link_google = (
                         "https://www.google.com/search"
                         f"?q={termo_seguro}&tbm=isch"
                     )
+
 
                     st.link_button(
                         "🔍 Clique aqui para buscar fotos no Google",
@@ -264,9 +324,10 @@ with aba_usuario:
                         type="secondary"
                     )
 
-                # --------------------------------------------
-                # CASO 2 - LINK DE IMAGEM
-                # --------------------------------------------
+
+                # ------------------------------------------------
+                # CASO 2 - LINK REAL DE FOTO
+                # ------------------------------------------------
 
                 elif valor_foto.lower().startswith("http"):
 
@@ -288,15 +349,17 @@ with aba_usuario:
                             "da imagem fornecido na planilha.*"
                         )
 
-                # --------------------------------------------
+
+                # ------------------------------------------------
                 # CASO 3 - SEM FOTO
-                # --------------------------------------------
+                # ------------------------------------------------
 
                 else:
 
                     st.caption(
                         "🖼️ *Foto não disponível para esta peça.*"
                     )
+
 
         # ====================================================
         # QUANTIDADE
@@ -309,6 +372,7 @@ with aba_usuario:
             step=1
         )
 
+
         # ====================================================
         # SOLICITANTE
         # ====================================================
@@ -317,8 +381,9 @@ with aba_usuario:
             "Seu Nome / Identificação:"
         )
 
+
         # ====================================================
-        # BOTÃO INCLUIR
+        # BOTÃO INCLUIR PEDIDO
         # ====================================================
 
         if st.button(
@@ -326,9 +391,10 @@ with aba_usuario:
             type="primary"
         ):
 
-            # -----------------------------------------------
+
+            # ------------------------------------------------
             # VALIDAR PEÇA
-            # -----------------------------------------------
+            # ------------------------------------------------
 
             if peca_selecionada == "Selecione...":
 
@@ -336,9 +402,10 @@ with aba_usuario:
                     "Por favor, selecione uma peça válida."
                 )
 
-            # -----------------------------------------------
+
+            # ------------------------------------------------
             # VALIDAR SOLICITANTE
-            # -----------------------------------------------
+            # ------------------------------------------------
 
             elif not solicitante.strip():
 
@@ -346,36 +413,43 @@ with aba_usuario:
                     "Por favor, insira o seu nome."
                 )
 
+
             else:
 
-                # -------------------------------------------
+                # ============================================
                 # VERIFICAR DUPLICIDADE
-                # -------------------------------------------
+                # ============================================
 
                 ja_existe = False
+
                 quem_pediu = ""
+
 
                 if (
                     not pedidos_df.empty
                     and "Situação" in pedidos_df.columns
                 ):
 
+
                     duplicados = pedidos_df[
                         (
                             pedidos_df["Descrição"]
                             .astype(str)
                             .str.strip()
-                            == str(peca_selecionada).strip()
+                            ==
+                            str(peca_selecionada).strip()
                         )
                         &
                         (
                             pedidos_df["Situação"]
                             .astype(str)
-                            .str.lower()
                             .str.strip()
-                            != "entregue"
+                            .str.lower()
+                            !=
+                            "entregue"
                         )
                     ]
+
 
                     if not duplicados.empty:
 
@@ -385,9 +459,10 @@ with aba_usuario:
                             duplicados.iloc[0]["Solicitante"]
                         )
 
-                # -------------------------------------------
-                # PEDIDO DUPLICADO
-                # -------------------------------------------
+
+                # ============================================
+                # PEDIDO JÁ EXISTENTE
+                # ============================================
 
                 if ja_existe:
 
@@ -398,9 +473,10 @@ with aba_usuario:
                         f"feito por **{quem_pediu}**."
                     )
 
-                # -------------------------------------------
-                # NOVO PEDIDO
-                # -------------------------------------------
+
+                # ============================================
+                # CRIAR NOVO PEDIDO
+                # ============================================
 
                 else:
 
@@ -408,8 +484,10 @@ with aba_usuario:
                         estoque_df["Descrição"]
                         .astype(str)
                         .str.strip()
-                        == peca_selecionada
+                        ==
+                        peca_selecionada
                     ]
+
 
                     if (
                         not linha_estoque.empty
@@ -424,17 +502,19 @@ with aba_usuario:
 
                         codigo_peca = ""
 
-                    # ---------------------------------------
+
+                    # ----------------------------------------
                     # DATA
-                    # ---------------------------------------
+                    # ----------------------------------------
 
                     data_atual = datetime.now().strftime(
                         "%d/%m/%Y"
                     )
 
-                    # ---------------------------------------
-                    # NOVO REGISTRO
-                    # ---------------------------------------
+
+                    # ----------------------------------------
+                    # NOVO PEDIDO
+                    # ----------------------------------------
 
                     novo_pedido = pd.DataFrame(
                         [
@@ -451,9 +531,30 @@ with aba_usuario:
                         ]
                     )
 
-                    # ---------------------------------------
-                    # JUNTAR COM PEDIDOS EXISTENTES
-                    # ---------------------------------------
+
+                    # ----------------------------------------
+                    # GARANTIR TIPOS
+                    # ----------------------------------------
+
+                    novo_pedido["SC"] = (
+                        novo_pedido["SC"]
+                        .astype(str)
+                    )
+
+                    novo_pedido["OF"] = (
+                        novo_pedido["OF"]
+                        .astype(str)
+                    )
+
+                    novo_pedido["Situação"] = (
+                        novo_pedido["Situação"]
+                        .astype(str)
+                    )
+
+
+                    # ----------------------------------------
+                    # JUNTAR PEDIDOS
+                    # ----------------------------------------
 
                     pedidos_atualizados = pd.concat(
                         [
@@ -463,14 +564,33 @@ with aba_usuario:
                         ignore_index=True
                     )
 
-                    # ---------------------------------------
-                    # SALVAR
-                    # ---------------------------------------
+
+                    # ----------------------------------------
+                    # GARANTIR SC/OF COMO TEXTO
+                    # ----------------------------------------
+
+                    for coluna in [
+                        "SC",
+                        "OF",
+                        "Situação"
+                    ]:
+
+                        pedidos_atualizados[coluna] = (
+                            pedidos_atualizados[coluna]
+                            .fillna("")
+                            .astype(str)
+                        )
+
+
+                    # ----------------------------------------
+                    # SALVAR GOOGLE SHEETS
+                    # ----------------------------------------
 
                     conn.update(
                         worksheet="Pedidos em Andamento",
                         data=pedidos_atualizados
                     )
+
 
                     st.success(
                         f"✅ Sucesso! "
@@ -479,11 +599,12 @@ with aba_usuario:
                         f"adicionado com sucesso."
                     )
 
+
                     st.rerun()
 
 
     # ========================================================
-    # PEDIDOS ATUAIS
+    # LISTA DE PEDIDOS ATUAIS
     # ========================================================
 
     st.markdown("---")
@@ -492,10 +613,12 @@ with aba_usuario:
         "👀 Pedidos Atuais em Andamento"
     )
 
+
     if (
         not pedidos_df.empty
         and "Situação" in pedidos_df.columns
     ):
+
 
         ativos = pedidos_df[
             pedidos_df["Situação"]
@@ -504,6 +627,7 @@ with aba_usuario:
             .str.lower()
             != "entregue"
         ]
+
 
         if not ativos.empty:
 
@@ -520,17 +644,20 @@ with aba_usuario:
                 if c in ativos.columns
             ]
 
+
             st.dataframe(
                 ativos[colunas_visiveis],
                 use_container_width=True,
                 hide_index=True
             )
 
+
         else:
 
             st.info(
                 "Nenhum pedido em andamento."
             )
+
 
     else:
 
@@ -539,17 +666,20 @@ with aba_usuario:
         )
 
 
-# ============================================================
-# ============================================================
-# ABA DO ADMINISTRADOR
-# ============================================================
-# ============================================================
+# ################################################################
+# ################################################################
+#
+#                    ABA ADMINISTRADOR
+#
+# ################################################################
+# ################################################################
 
 with aba_admin:
 
     st.subheader(
         "🔒 Painel do Administrador"
     )
+
 
     # ========================================================
     # SENHA
@@ -559,6 +689,7 @@ with aba_admin:
         "Digite a senha do Administrador:",
         type="password"
     )
+
 
     # ========================================================
     # ACESSO LIBERADO
@@ -570,9 +701,11 @@ with aba_admin:
             "🔓 Acesso liberado!"
         )
 
+
         st.write(
             "### 📋 Controle de Pedidos"
         )
+
 
         # ====================================================
         # VERIFICAR PEDIDOS
@@ -583,9 +716,10 @@ with aba_admin:
             and "Situação" in pedidos_df.columns
         ):
 
-            # -----------------------------------------------
-            # TODOS OS PEDIDOS DIFERENTES DE ENTREGUE
-            # -----------------------------------------------
+
+            # ------------------------------------------------
+            # MOSTRAR TODOS MENOS ENTREGUES
+            # ------------------------------------------------
 
             pedidos_admin = pedidos_df[
                 pedidos_df["Situação"]
@@ -595,9 +729,10 @@ with aba_admin:
                 != "entregue"
             ].copy()
 
-            # -----------------------------------------------
+
+            # ------------------------------------------------
             # NENHUM PEDIDO
-            # -----------------------------------------------
+            # ------------------------------------------------
 
             if pedidos_admin.empty:
 
@@ -605,21 +740,26 @@ with aba_admin:
                     "✅ Não existem pedidos pendentes."
                 )
 
+
             else:
 
-                # -------------------------------------------
-                # GARANTIR COLUNAS SC E OF
-                # -------------------------------------------
+                # ============================================
+                # GARANTIR SC E OF
+                # ============================================
 
                 if "SC" not in pedidos_admin.columns:
+
                     pedidos_admin["SC"] = ""
 
+
                 if "OF" not in pedidos_admin.columns:
+
                     pedidos_admin["OF"] = ""
 
-                # -------------------------------------------
-                # COLUNAS DO PAINEL
-                # -------------------------------------------
+
+                # ============================================
+                # COLUNAS DO ADMIN
+                # ============================================
 
                 colunas_admin = [
                     "Data",
@@ -632,11 +772,13 @@ with aba_admin:
                     "OF"
                 ]
 
+
                 colunas_admin = [
                     c
                     for c in colunas_admin
                     if c in pedidos_admin.columns
                 ]
+
 
                 tabela_editor = (
                     pedidos_admin[
@@ -646,11 +788,16 @@ with aba_admin:
                     .reset_index(drop=True)
                 )
 
-                # -------------------------------------------
-                # GARANTIR TEXTOS
-                # -------------------------------------------
 
-                for coluna in ["SC", "OF", "Situação"]:
+                # ============================================
+                # CONVERTER CAMPOS EDITÁVEIS PARA TEXTO
+                # ============================================
+
+                for coluna in [
+                    "SC",
+                    "OF",
+                    "Situação"
+                ]:
 
                     if coluna in tabela_editor.columns:
 
@@ -660,9 +807,10 @@ with aba_admin:
                             .astype(str)
                         )
 
-                # =================================================
-                # EDITOR
-                # =================================================
+
+                # ============================================
+                # EDITOR DE PEDIDOS
+                # ============================================
 
                 dados_editados = st.data_editor(
 
@@ -719,8 +867,8 @@ with aba_admin:
                             st.column_config.TextColumn(
                                 "SC",
                                 help=(
-                                    "Número da "
-                                    "Solicitação de Compra"
+                                    "Número da Solicitação "
+                                    "de Compra"
                                 )
                             ),
 
@@ -728,8 +876,8 @@ with aba_admin:
                             st.column_config.TextColumn(
                                 "OF",
                                 help=(
-                                    "Número da "
-                                    "Ordem de Fornecimento"
+                                    "Número da Ordem "
+                                    "de Fornecimento"
                                 )
                             )
                     },
@@ -737,11 +885,13 @@ with aba_admin:
                     key="editor_pedidos"
                 )
 
-                # =================================================
+
+                # ============================================
                 # BOTÃO SALVAR
-                # =================================================
+                # ============================================
 
                 st.markdown("---")
+
 
                 if st.button(
                     "💾 Salvar alterações",
@@ -749,23 +899,51 @@ with aba_admin:
                     use_container_width=True
                 ):
 
+
                     try:
 
-                        # -----------------------------------------
-                        # COPIAR PLANILHA ORIGINAL
-                        # -----------------------------------------
+                        # ====================================
+                        # COPIAR DADOS ORIGINAIS
+                        # ====================================
 
                         pedidos_novos = pedidos_df.copy()
 
-                        # -----------------------------------------
-                        # ATUALIZAR OS REGISTROS
-                        # -----------------------------------------
+
+                        # ====================================
+                        # GARANTIR COLUNAS
+                        # ====================================
+
+                        for coluna in [
+                            "SC",
+                            "OF",
+                            "Situação"
+                        ]:
+
+                            if coluna not in pedidos_novos.columns:
+
+                                pedidos_novos[coluna] = ""
+
+
+                            pedidos_novos[coluna] = (
+                                pedidos_novos[coluna]
+                                .fillna("")
+                                .astype(str)
+                            )
+
+
+                        # ====================================
+                        # ATUALIZAR REGISTROS
+                        # ====================================
 
                         for posicao, indice_original in enumerate(
                             pedidos_admin.index
                         ):
 
-                            # Situação
+
+                            # --------------------------------
+                            # SITUAÇÃO
+                            # --------------------------------
+
                             pedidos_novos.loc[
                                 indice_original,
                                 "Situação"
@@ -775,7 +953,11 @@ with aba_admin:
                                 ]["Situação"]
                             )
 
+
+                            # --------------------------------
                             # SC
+                            # --------------------------------
+
                             pedidos_novos.loc[
                                 indice_original,
                                 "SC"
@@ -785,7 +967,11 @@ with aba_admin:
                                 ]["SC"]
                             )
 
+
+                            # --------------------------------
                             # OF
+                            # --------------------------------
+
                             pedidos_novos.loc[
                                 indice_original,
                                 "OF"
@@ -795,20 +981,41 @@ with aba_admin:
                                 ]["OF"]
                             )
 
-                        # -----------------------------------------
-                        # SALVAR NO GOOGLE SHEETS
-                        # -----------------------------------------
+
+                        # ====================================
+                        # GARANTIR NOVAMENTE COMO TEXTO
+                        # ====================================
+
+                        for coluna in [
+                            "SC",
+                            "OF",
+                            "Situação"
+                        ]:
+
+                            pedidos_novos[coluna] = (
+                                pedidos_novos[coluna]
+                                .fillna("")
+                                .astype(str)
+                            )
+
+
+                        # ====================================
+                        # SALVAR GOOGLE SHEETS
+                        # ====================================
 
                         conn.update(
                             worksheet="Pedidos em Andamento",
                             data=pedidos_novos
                         )
 
+
                         st.success(
                             "✅ Alterações salvas com sucesso!"
                         )
 
+
                         st.rerun()
+
 
                     except Exception as e:
 
@@ -818,12 +1025,14 @@ with aba_admin:
 
                         st.exception(e)
 
+
         else:
 
             st.info(
                 "Nenhum pedido cadastrado "
                 "no banco de dados."
             )
+
 
     # ========================================================
     # SENHA INCORRETA
