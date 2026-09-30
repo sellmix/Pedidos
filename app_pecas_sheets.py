@@ -9,15 +9,15 @@ st.set_page_config(page_title="Sistema de Pedidos de Peças", page_icon="⚙️"
 # CONFIGURAÇÃO DE SEGURANÇA DO ADMIN
 SENHA_ADMIN = "admin123"     # Altere para a senha que desejar
 
-# Inicializa a conexão oficial usando os Secrets com a Service Account
+# Inicializa a conexão oficial usando os Secrets com a Service Account no formato padrão
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def carregar_dados():
     try:
-        # Lendo diretamente pelo nome da aba graças à Conta de Serviço autorizada
+        # Lendo diretamente pelo nome da aba usando a conexão autenticada
         estoque = conn.read(worksheet="Lista Peças", ttl=0)
     except Exception as e:
-        st.error(f"Erro ao ler 'Lista Peças': Envie o e-mail da Service Account como EDITOR na sua Planilha.")
+        st.error(f"Erro ao ler 'Lista Peças'. Verifique os Secrets.")
         estoque = pd.DataFrame(columns=["Código", "Descrição", "Utilizado", "Un", "Max", "Min"])
         
     try:
@@ -25,7 +25,7 @@ def carregar_dados():
     except Exception:
         pedidos = pd.DataFrame(columns=["Data", "Código", "Descrição", "Quantidade", "Solicitante", "Situação", "SC", "OF"])
     
-    # Validação de colunas
+    # Validação estrutural de colunas
     if estoque.empty or "Descrição" not in estoque.columns:
         estoque = pd.DataFrame(columns=["Código", "Descrição", "Utilizado", "Un", "Max", "Min"])
     if pedidos.empty or "Situação" not in pedidos.columns:
@@ -45,9 +45,9 @@ with aba_usuario:
     st.subheader("Nova Solicitação")
     
     if estoque_df.empty:
-        st.warning("⚠️ O catálogo de peças aparece vazio. Certifique-se de que compartilhou a planilha com o e-mail da Service Account.")
+        st.warning("⚠️ O catálogo de peças aparece vazio. Certifique-se de que os Secrets estão configurados no formato correto da biblioteca.")
     else:
-        # Puxa e limpa a lista de itens da coluna Descrição
+        # Limpa e formata a lista de itens da coluna Descrição
         lista_pecas = estoque_df["Descrição"].dropna().unique().tolist()
         lista_pecas = [str(p).strip() for p in lista_pecas if str(p).strip() != ""]
         lista_pecas.sort()
@@ -73,18 +73,18 @@ with aba_usuario:
                     ]
                     if not duplicados.empty:
                         já_existe = True
-                        quem_pediu = duplicados["Solicitante"].values[0]
+                        quem_pediu = duplicados.iloc[0]["Solicitante"]
                 
                 if já_existe:
                     st.error(f"⚠️ **Aviso de Duplicidade:** Já existe um pedido **Pendente** para a peça *'{peca_selecionada}'* feito por **{quem_pediu}**.")
                 else:
-                    # Coleta o código da peça
+                    # Coleta o código correspondente à peça selecionada
                     linha_estoque = estoque_df[estoque_df["Descrição"] == peca_selecionada]
-                    codigo_peca = linha_estoque["Código"].values[0] if not linha_estoque.empty and "Código" in estoque_df.columns else ""
+                    codigo_peca = linha_estoque.iloc[0]["Código"] if not linha_estoque.empty and "Código" in estoque_df.columns else ""
                     
                     data_atual = datetime.now().strftime("%d/%m/%Y")
                     
-                    # Prepara a linha no formato exato da sua aba de Pedidos
+                    # Prepara a nova linha mantendo rigorosamente as colunas da sua planilha de pedidos
                     novo_pedido = pd.DataFrame([{
                         "Data": data_atual,
                         "Código": str(codigo_peca),
@@ -98,9 +98,9 @@ with aba_usuario:
                     
                     pedidos_atualizados = pd.concat([pedidos_df, novo_pedido], ignore_index=True)
                     
-                    # Gravação via conexão autenticada
+                    # Atualização oficial do gsheets
                     conn.update(worksheet="Pedidos em Andamento", data=pedidos_atualizados)
-                    st.success(f"✅ Sucesso! {quantidade}x '{peca_selecionada}' adicionado à lista.")
+                    st.success(f"✅ Sucesso! {quantidade}x '{peca_selecionada}' adicionado com sucesso.")
                     st.rerun()
 
     st.markdown("---")
@@ -141,8 +141,6 @@ with aba_admin:
                             st.success(f"Atualizado!")
                             st.rerun()
         else:
-            st.info("Nenhum pedido cadastrado no banco de dados.")
+            st.info("Nenhum pedido cadastrado no banco dados.")
     elif senha_inserida != "":
         st.error("Senha incorreta. Tente novamente.")
-
-
