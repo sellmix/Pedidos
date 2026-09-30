@@ -2,6 +2,7 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
+import urllib.parse
 
 # Configurações iniciais da página
 st.set_page_config(page_title="Sistema de Pedidos de Peças", page_icon="⚙️", layout="centered")
@@ -55,16 +56,16 @@ with aba_usuario:
         
         peca_selecionada = st.selectbox("Selecione a Peça (Busque digitando):", ["Selecione..."] + lista_pecas)
         
-        # --- LÓGICA INTELIGENTE DE EXIBIÇÃO DE FOTOS ---
+        # --- LÓGICA INTELIGENTE DE EXIBIÇÃO DE FOTOS CORRIGIDA ---
         if peca_selecionada != "Selecione...":
             linha_peca = estoque_df[estoque_df["Descrição"] == peca_selecionada]
             if not linha_peca.empty and "Foto" in estoque_df.columns:
                 valor_foto = str(linha_peca["Foto"].values[0]).strip()
                 
-                # Caso 1: Está escrito "procurar" -> Gera o link de busca automatizada no Google
+                # Caso 1: Está escrito "procurar" -> Gera o link correto de busca no Google Imagens
                 if valor_foto.lower() == "procurar":
-                    termo_busca = peca_selecionada.replace(" ", "+")
-                    link_google = f"https://google.com{termo_busca}"
+                    termo_seguro = urllib.parse.quote_plus(peca_selecionada)
+                    link_google = f"https://google.com{termo_seguro}&tbm=isch"
                     st.markdown(f"🔍 **[Clique aqui para ver fotos desta peça no Google Imagens]({link_google})**")
                 
                 # Caso 2: Contém um link real (começa com http ou https) -> Tenta exibir a imagem
@@ -99,13 +100,13 @@ with aba_usuario:
                     ]
                     if not duplicados.empty:
                         já_existe = True
-                        quem_pediu = duplicados.iloc[0]["Solicitante"]
+                        quem_pediu = duplicados["Solicitante"].values[0]
                 
                 if já_existe:
                     st.error(f"⚠️ **Aviso de Duplicidade:** Já existe um pedido **Pendente** para a peça *'{peca_selecionada}'* feito por **{quem_pediu}**.")
                 else:
                     linha_estoque = estoque_df[estoque_df["Descrição"] == peca_selecionada]
-                    codigo_peca = linha_estoque.iloc[0]["Código"] if not linha_estoque.empty and "Código" in estoque_df.columns else ""
+                    codigo_peca = linha_estoque["Código"].values[0] if not linha_estoque.empty and "Código" in estoque_df.columns else ""
                     
                     data_atual = datetime.now().strftime("%d/%m/%Y")
                     
